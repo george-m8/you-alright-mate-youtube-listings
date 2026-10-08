@@ -14,7 +14,7 @@ A site editor adds two lines to a Webflow Embed element, and the videos appear a
 **Embed snippet (the whole integration)**
 ```html
 <div data-yt-listings></div>
-<script src="https://<worker-host>/yt-listings.js" defer></script>
+<script src="https://you-alright-mate-youtube-listings.george-49a.workers.dev/yt-listings.js" defer></script>
 ```
 
 ## Architecture
@@ -36,7 +36,7 @@ One Cloudflare Worker with two jobs:
 
 `/videos` reads from KV. If KV is empty (first deploy), it runs the refresh once inline.
 
-**Shorts rule:** treat a video as a Short if its duration is **3 minutes (180s) or less**. YouTube doesn't expose an "is Short" flag in the API, so this is a heuristic. See Open Questions.
+**Shorts rule:** treat a video as a Short if its duration is **3 minutes (180s) or less**. YouTube doesn't expose an "is Short" flag in the API, so this is a heuristic (threshold agreed, see Decisions).
 
 **`/videos` response shape**
 ```json
@@ -63,8 +63,8 @@ Matches the live site's CSS (`different-hats-staging.webflow.shared.*.css`):
 - **Container:** horizontal flex row with 3 equal cards and a gap. It stacks to 1 column at 767px and below (Webflow's mobile landscape breakpoint).
 - **Card:** `background: #000`, `border: 2px solid #fff`, white text.
   - Thumbnail at full card width, 16:9 (`aspect-ratio: 16/9; object-fit: cover`), `loading="lazy"`, `alt` = video title.
-  - Title below the thumbnail, uppercase like the site's `h3` but smaller (about 18px, weight 400), clamped to 3 lines.
-  - "Watch" button below the title.
+  - Title below the thumbnail, centred, uppercase like the site's `h3` but smaller (about 18px, weight 400), clamped to 3 lines.
+  - "Watch" button (label: `Watch`) below the title.
 - **Button:** uses the site's own `outlined-button w-button` classes, so it stays in sync with any site restyle: 3px solid `#fcee21` (yellow) border, yellow uppercase text, weight 600, transparent background, `scale(1.2)` on hover. The script's CSS repeats these rules scoped under `.yt-listings` as a fallback, so the cards still look right on a page without the site stylesheet (the local test page).
 - **Link:** `href` = YouTube watch URL, `target="_blank" rel="noopener"`.
 - **States:** while loading, show 3 placeholder cards of the same size so the layout doesn't shift. On error or with no videos, the container stays empty (no broken UI) and the script logs `console.warn`.
@@ -82,10 +82,10 @@ Matches the live site's CSS (`different-hats-staging.webflow.shared.*.css`):
 
 | Name | Kind | Value |
 |---|---|---|
-| `GOOGLE_CLOUD_API_KEY` | Worker secret (`wrangler secret put`) / `.dev.vars` locally | from `.env` |
-| `CHANNEL_ID` | `vars` in `wrangler.jsonc` | **TBC** (`UC...`) |
-| `ALLOWED_ORIGINS` | `vars` in `wrangler.jsonc` | `https://different-hats-staging.webflow.io`, live domain **TBC**, `http://localhost:8787` |
-| `VIDEOS` | KV namespace binding | created with `wrangler kv namespace create VIDEOS` |
+| `GOOGLE_CLOUD_API_KEY` | Worker secret (`wrangler secret put`); locally read from `.env` by `wrangler dev` | from `.env` |
+| `CHANNEL_ID` | `vars` in `wrangler.jsonc` | `UCtifmqPSWYmwn9J53Bdh-Gg` (@different-hats, "Different Hats Podcast") |
+| `ALLOWED_ORIGINS` | `vars` in `wrangler.jsonc` (comma-separated string) | `https://different-hats-staging.webflow.io,https://www.different-hats.co.uk,http://localhost:8787` |
+| `VIDEOS` | KV namespace binding | namespace `YOUTUBE_LISTINGS_VIDEOS`, id `72bea2d74fca4cd69fb005e9e75ac16f` |
 
 The Google Cloud key should also be restricted to **YouTube Data API v3** only in Google Cloud Console. It is only used server-side, so it doesn't need a referrer restriction.
 
@@ -96,9 +96,9 @@ Install:      npm install
 Dev:          npx wrangler dev            # serves /videos, /yt-listings.js and test/index.html on :8787
 Test cron:    npx wrangler dev --test-scheduled  then  curl "http://localhost:8787/__scheduled"
 Test:         npx vitest run
-Deploy:       npx wrangler deploy
-Set secret:   npx wrangler secret put GOOGLE_CLOUD_API_KEY
-Create KV:    npx wrangler kv namespace create VIDEOS
+Deploy:       git push (Cloudflare Workers Builds deploys on push); npx wrangler deploy for manual deploys
+Set secret:   npx wrangler secret put GOOGLE_CLOUD_API_KEY   (or Worker > Settings > Variables in the dashboard)
+Create KV:    npx wrangler kv namespace create YOUTUBE_LISTINGS_VIDEOS   (done)
 ```
 
 ## Project Structure
@@ -111,7 +111,7 @@ public/index.html      → local test page with the embed snippet (dev preview o
 test/youtube.test.js   → unit tests for youtube.js with mocked fetch
 test/render.test.js    → unit tests for client rendering (jsdom)
 wrangler.jsonc         → Worker config, KV binding, cron, vars
-.env / example.env     → existing; .dev.vars mirrors .env for wrangler dev
+.env / example.env     → API key; wrangler dev reads .env directly
 README.md              → setup, deploy and Webflow embed instructions
 SPEC.md                → this file
 ```
@@ -156,7 +156,7 @@ export function toListing(video) {
 ## Boundaries
 
 - **Always:** keep the API key server-side only, scope all CSS under `.yt-listings`, use `textContent` for API data, run `npx vitest run` before deploy, keep README in sync.
-- **Ask first:** adding npm dependencies beyond wrangler/vitest/jsdom, changing the refresh interval or Shorts threshold, deploying to Cloudflare, anything touching the Webflow project itself.
+- **Ask first:** adding npm dependencies beyond wrangler/vitest/jsdom, changing the refresh interval or Shorts threshold, pushing to the deployed branch (push = deploy), anything touching the Webflow project itself.
 - **Never:** commit `.env` / `.dev.vars` (add to `.gitignore`), put the key in client code, call `search.list` (100 units), use `innerHTML` with API strings.
 
 ## Success Criteria
@@ -171,10 +171,13 @@ export function toListing(video) {
 8. The script adds no visible layout shift and doesn't affect styling outside the container.
 9. `npx vitest run` passes.
 
+## Decisions
+
+- **Channel:** `@different-hats` resolved to `UCtifmqPSWYmwn9J53Bdh-Gg`. Its latest uploads are "The Journal" episodes, so there's real data to test against.
+- **Worker host:** `you-alright-mate-youtube-listings.george-49a.workers.dev`. The repo already deploys there on push.
+- **Shorts threshold:** 180s, fine for now.
+- **Button label:** `Watch`.
+
 ## Open Questions
 
-1. **Channel ID:** the `UC...` ID, or the channel URL/handle so I can look it up.
-2. **Live domain:** the production domain(s) to add to `ALLOWED_ORIGINS`, besides `different-hats-staging.webflow.io`.
-3. **Shorts threshold:** is 180s right? If the channel posts regular videos under 3 minutes, they would be hidden. An alternative is to check `youtube.com/shorts/<id>` (it redirects for non-Shorts), which is more accurate but undocumented.
-4. **Button label:** "Watch" or "Watch Now" (the site already uses "Watch Now")?
-5. **Cloudflare account:** confirm you have one and will run `npx wrangler login` before deploy.
+1. **Third domain (coming soon):** add it to `ALLOWED_ORIGINS` in `wrangler.jsonc` and push. No code change needed. The apex `different-hats.co.uk` 301-redirects to `www`, so it doesn't need its own entry.

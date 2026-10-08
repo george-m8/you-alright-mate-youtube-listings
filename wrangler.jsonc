@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "you-alright-mate-youtube-listings",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+
+  // Serves public/yt-listings.js (the Webflow script) and the local preview page.
+  "assets": { "directory": "./public" },
+
+  // Refresh the cached video list every 30 minutes.
+  "triggers": { "crons": ["*/30 * * * *"] },
+
+  "kv_namespaces": [
+    // Namespace title on Cloudflare: YOUTUBE_LISTINGS_VIDEOS
+    { "binding": "VIDEOS", "id": "72bea2d74fca4cd69fb005e9e75ac16f" }
+  ],
+
+  // GOOGLE_CLOUD_API_KEY is a secret: `npx wrangler secret put GOOGLE_CLOUD_API_KEY` (locally: .dev.vars).
+  "vars": {
+    "CHANNEL_ID": "UCtifmqPSWYmwn9J53Bdh-Gg",
+    // Comma-separated. Add new site domains here.
+    "ALLOWED_ORIGINS": "https://different-hats-staging.webflow.io,https://www.different-hats.co.uk,http://localhost:8787"
+  }
+}

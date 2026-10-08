@@ -1,0 +1,15 @@
+{
+  "name": "you-alright-mate-youtube-listings",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "jsdom": "^27.0.1",
+    "vitest": "^3.2.7",
+    "wrangler": "^4.149.0"
+  }
+}
