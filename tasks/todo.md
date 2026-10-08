@@ -99,14 +99,14 @@ See `tasks/plan.md` for context and `SPEC.md` for requirements.
 **Description:** With George's go-ahead, commit and push to `main` (which deploys). Verify the live Worker, then George adds the embed snippet to a Webflow Embed element and publishes staging.
 
 **Acceptance criteria:**
-- [ ] `https://you-alright-mate-youtube-listings.george-49a.workers.dev/videos` returns 3 videos
-- [ ] Cards render on `different-hats-staging.webflow.io` and match the site style
-- [ ] SPEC success criteria 1-9 are all met
+- [x] `https://you-alright-mate-youtube-listings.george-49a.workers.dev/videos` returns 3 videos
+- [x] Cards render on `different-hats-staging.webflow.io` and match the site style
+- [x] SPEC success criteria 1-9 are all met
 
 **Verification:**
-- [ ] `curl -i -H "Origin: https://www.different-hats.co.uk" <worker>/videos` echoes ACAO
-- [ ] View source / Network on staging shows no API key
-- [ ] Manual check at desktop and mobile widths on staging
+- [x] `curl -i -H "Origin: https://www.different-hats.co.uk" <worker>/videos` echoes ACAO
+- [x] View source / Network on staging shows no API key
+- [x] Manual check at desktop and mobile widths on staging
 
 **Dependencies:** Task 4
 
@@ -115,5 +115,5 @@ See `tasks/plan.md` for context and `SPEC.md` for requirements.
 **Estimated scope:** XS
 
 ## Checkpoint C: Complete
-- [ ] All SPEC success criteria met on staging
-- [ ] README accurate
+- [x] All SPEC success criteria met on staging
+- [x] README accurate

@@ -49,11 +49,11 @@ youtube.js (API client, duration parse, Shorts filter, mapping)
 
 ### Phase 3: Ship
 - [x] Task 4: Cloudflare setup and README
-- [ ] Task 5: Deploy (push) and embed on Webflow staging
+- [x] Task 5: Deploy (push) and embed on Webflow staging
 
 ### Checkpoint C: Complete
-- [ ] All SPEC success criteria (1-9) met on staging
-- [ ] README accurate
+- [x] All SPEC success criteria (1-9) met on staging
+- [x] README accurate
 
 ## Risks and Mitigations
 

@@ -13,6 +13,8 @@ Paste this into an **Embed** element wherever the cards should appear:
 <script src="https://you-alright-mate-youtube-listings.george-49a.workers.dev/yt-listings.js" defer></script>
 ```
 
+**Without a code embed** (how it's set up on the site): add an empty Div Block and give it the custom attribute `data-yt-listings` = `true` (Settings > Custom attributes; any value works). Then put the `<script>` tag in Page settings > Custom code > Before `</body>` (or Site settings > Footer code to use it on every page). Don't set display, flex direction or gap on that div, because the script controls the layout.
+
 - The cards fill the width of their parent: a row of 3 on desktop, stacking to 1 column at 767px and below.
 - The Watch button uses the site's own `outlined-button` class, so it follows any restyle of that class.
 - Embed scripts don't run in the Webflow Designer. Check on the published site.
