@@ -69,3 +69,17 @@ youtube.js (API client, duration parse, Shorts filter, mapping)
 ## Open Questions
 
 - Third domain (coming soon): add it to `ALLOWED_ORIGINS` when known.
+
+---
+
+# Phase 4: Listings page, Shorts, previews and layouts (2026-10-09)
+
+Site is being demoed today, so this is one build pass, verified locally before any push. See SPEC "Container options".
+
+- [x] Task 6: `youtube.js` fetches 100 candidates (2 pages), returns `{ videos (30), shorts (12) }`, adds `description` preview and platform `links` to videos. Tests.
+- [x] Task 7: `worker.js` stores the new shape; 502 body includes `shorts: []`. Tests.
+- [x] Task 8: `yt-listings.js` reads per-container attributes (source, limit, layout, thumb, description, links), grid CSS, Shorts and list layouts. Default embed unchanged (3 cards). Tests.
+- [x] Task 9: Preview page with every variant, README, visual check at 1280px and 375px.
+- [ ] Checkpoint: `npx vitest run` passes, George reviews locally, then push (= deploy) with his go-ahead.
+
+**Risk:** after deploy, KV holds the old shape (no `shorts`, no descriptions) for up to 30 minutes. The client handles this (Shorts container stays empty, previews are skipped). Deleting the `videos:latest` key forces an inline refresh on the next request.

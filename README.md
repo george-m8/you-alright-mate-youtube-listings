@@ -1,6 +1,6 @@
 # YouTube Listings for Webflow
 
-Shows the 3 latest long-form videos from the [Different Hats Podcast](https://www.youtube.com/@different-hats) YouTube channel as styled cards on the Webflow site. You add it with a script tag, not an iframe.
+Shows the latest long-form videos (3 on the homepage, up to 30 on a listings page) and the latest Shorts from the [Different Hats Podcast](https://www.youtube.com/@different-hats) YouTube channel as styled cards on the Webflow site. You add it with a script tag, not an iframe.
 
 A Cloudflare Worker keeps the YouTube API key secret, refreshes the video list every 30 minutes and serves the embed script. See [SPEC.md](SPEC.md) for the full requirements.
 
@@ -20,21 +20,52 @@ Paste this into an **Embed** element wherever the cards should appear:
 - Embed scripts don't run in the Webflow Designer. Check on the published site.
 - The page's domain must be in `ALLOWED_ORIGINS` (see below), or the browser blocks the request and the container stays empty.
 
+### Options
+
+Add these as extra custom attributes on the same div (Webflow attributes always need a value). One script tag per page handles every container on it, and all of them share one request.
+
+| Attribute | Values | Default | What it does |
+|---|---|---|---|
+| `data-yt-source` | `videos`, `shorts` | `videos` | `shorts`: Shorts in a row of 4 (2x2 on mobile), linking to the Shorts player |
+| `data-yt-limit` | 1-30 (12 for Shorts) | 3 (4 for Shorts) | How many to show; grids wrap 3 per row, so 30 makes 10 rows |
+| `data-yt-layout` | `grid`, `list` | `grid` | `list`: one wide card per row, thumbnail at full height fading into the text |
+| `data-yt-thumb` | `left`, `right`, `alternate` | `left` | Thumbnail side in the `list` layout |
+| `data-yt-description` | `true`/`false` | off | Preview of the description's opening paragraphs (about 280 characters, clamped to 3-4 lines) |
+| `data-yt-links` | `true`/`false` | off | `Other ways to watch and listen: Apple Podcasts, Spotify` from links in the description; hidden when there are none |
+
+Examples:
+
+```html
+<!-- Homepage: unchanged -->
+<div data-yt-listings></div>
+
+<!-- Listings page -->
+<div data-yt-listings data-yt-source="shorts"></div>
+<div data-yt-listings data-yt-limit="30" data-yt-description="true" data-yt-links="true"></div>
+
+<!-- List layout, alternating sides -->
+<div data-yt-listings data-yt-limit="30" data-yt-layout="list" data-yt-thumb="alternate" data-yt-description="true" data-yt-links="true"></div>
+```
+
+**Platform links** come from the video's YouTube description: paste the full episode URL (for example `https://open.spotify.com/episode/...` or `https://podcasts.apple.com/...`) anywhere in it. Recognised: Apple Podcasts, Spotify, Acast, Amazon Music, YouTube Music, Pocket Casts, Overcast. They show up on the site after the next refresh (within 30 minutes).
+
+**The description preview** stops at the first paragraph that contains a URL, so put links and sponsor blocks below the opening text.
+
 ## How it works
 
 ```
 Cron (every 30 min) ──► YouTube Data API v3 ──► KV (videos:latest)
-                         (3 quota units/run)          │
+                         (≤5 quota units/run)          │
 Webflow page ──► /yt-listings.js ──► GET /videos ◄────┘
 ```
 
 | Route | What it does |
 |---|---|
 | `GET /yt-listings.js` | The embed script (static asset from `public/`) |
-| `GET /videos` | Latest 3 videos as JSON, read from KV. CORS only for `ALLOWED_ORIGINS` |
+| `GET /videos` | Latest 30 videos (with description preview and platform links) and 12 Shorts as JSON, read from KV. CORS only for `ALLOWED_ORIGINS` |
 | Cron `*/30 * * * *` | Refreshes KV. If YouTube fails, the last good list is kept |
 
-Videos of **3 minutes or less are treated as Shorts** and skipped (`SHORTS_MAX_SECONDS` in `src/youtube.js`).
+Each refresh reads the newest 100 uploads. Videos of **3 minutes or less are treated as Shorts** (`SHORTS_MAX_SECONDS` in `src/youtube.js`); trailing hashtags are stripped from Shorts titles.
 
 ## Configuration
 
@@ -98,8 +129,8 @@ npx wrangler tail                                                  # live logs
 ```
 src/worker.js          Worker: /videos, CORS, cron refresh
 src/youtube.js         YouTube API calls, Shorts filter, mapping
-public/yt-listings.js  Embed script (cards + scoped CSS)
-public/index.html      Local preview page
+public/yt-listings.js  Embed script (cards, options, scoped CSS)
+public/index.html      Local preview page (every layout)
 test/                  Vitest unit tests
 wrangler.jsonc         Worker config
 SPEC.md, tasks/        Spec and implementation plan

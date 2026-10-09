@@ -7,8 +7,17 @@ const LISTING = {
   thumbnail: 'https://i.ytimg.com/vi/v1/hqdefault.jpg',
   url: 'https://www.youtube.com/watch?v=v1',
   publishedAt: '2026-10-06T00:00:00Z',
+  description: 'About v1.',
+  links: [],
 };
-const CACHED = { updatedAt: '2026-10-08T12:00:00.000Z', videos: [LISTING] };
+const SHORT = {
+  id: 's1',
+  title: 'Title s1',
+  thumbnail: 'https://i.ytimg.com/vi/s1/hqdefault.jpg',
+  url: 'https://www.youtube.com/shorts/s1',
+  publishedAt: '2026-10-05T00:00:00Z',
+};
+const CACHED = { updatedAt: '2026-10-08T12:00:00.000Z', videos: [LISTING], shorts: [SHORT] };
 
 function fakeKv(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -35,19 +44,18 @@ function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-// Stubs the three YouTube calls with one long-form video.
+// Stubs the three YouTube calls with one long-form video and one Short.
 function youTubeOk() {
+  const item = (listing, duration, description) => ({
+    id: listing.id,
+    snippet: { title: listing.title, description, publishedAt: listing.publishedAt, thumbnails: { high: { url: listing.thumbnail } } },
+    contentDetails: { duration },
+  });
   return vi.fn(async (url) => {
     const endpoint = new URL(url).pathname.split('/').pop();
     if (endpoint === 'channels') return jsonResponse({ items: [{ contentDetails: { relatedPlaylists: { uploads: 'UU' } } }] });
-    if (endpoint === 'playlistItems') return jsonResponse({ items: [{ contentDetails: { videoId: 'v1' } }] });
-    return jsonResponse({
-      items: [{
-        id: 'v1',
-        snippet: { title: 'Title v1', publishedAt: LISTING.publishedAt, thumbnails: { high: { url: LISTING.thumbnail } } },
-        contentDetails: { duration: 'PT20M' },
-      }],
-    });
+    if (endpoint === 'playlistItems') return jsonResponse({ items: [{ contentDetails: { videoId: 'v1' } }, { contentDetails: { videoId: 's1' } }] });
+    return jsonResponse({ items: [item(LISTING, 'PT20M', 'About v1.'), item(SHORT, 'PT45S', '')] });
   });
 }
 
@@ -93,6 +101,7 @@ describe('GET /videos', () => {
 
     expect(res.status).toBe(200);
     expect(body.videos).toEqual([LISTING]);
+    expect(body.shorts).toEqual([SHORT]);
     expect(JSON.parse(env.VIDEOS.store.get('videos:latest')).videos).toEqual([LISTING]);
   });
 
@@ -102,7 +111,7 @@ describe('GET /videos', () => {
     const res = await worker.fetch(request('/videos'), makeEnv());
 
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ videos: [] });
+    expect(await res.json()).toEqual({ videos: [], shorts: [] });
     expect(console.error).toHaveBeenCalled();
   });
 
@@ -156,6 +165,7 @@ describe('scheduled refresh', () => {
 
     const stored = JSON.parse(env.VIDEOS.store.get('videos:latest'));
     expect(stored.videos).toEqual([LISTING]);
+    expect(stored.shorts).toEqual([SHORT]);
     expect(Date.parse(stored.updatedAt)).not.toBeNaN();
   });
 

@@ -3,8 +3,8 @@ import { fetchLatestVideos } from './youtube.js';
 const KV_KEY = 'videos:latest';
 
 async function refresh(env) {
-  const videos = await fetchLatestVideos(env.GOOGLE_CLOUD_API_KEY, env.CHANNEL_ID);
-  const data = { updatedAt: new Date().toISOString(), videos };
+  const { videos, shorts } = await fetchLatestVideos(env.GOOGLE_CLOUD_API_KEY, env.CHANNEL_ID);
+  const data = { updatedAt: new Date().toISOString(), videos, shorts };
   await env.VIDEOS.put(KV_KEY, JSON.stringify(data));
   return data;
 }
@@ -45,7 +45,7 @@ export default {
         data = await refresh(env);
       } catch (err) {
         console.error('Inline refresh failed:', err.message);
-        return json({ videos: [] }, 502, cors);
+        return json({ videos: [], shorts: [] }, 502, cors);
       }
     }
     return json(data, 200, cors);

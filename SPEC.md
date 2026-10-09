@@ -2,7 +2,7 @@
 
 ## Objective
 
-Show the 3 latest long-form YouTube videos from one fixed channel on the Different Hats / You Alright Mate Webflow site (`https://different-hats-staging.webflow.io/`).
+Show the latest long-form YouTube videos (and, optionally, the latest Shorts) from one fixed channel on the Different Hats / You Alright Mate Webflow site (`https://different-hats-staging.webflow.io/`). The homepage shows a row of 3; a listings page shows up to 30 in a grid or list.
 
 A site editor adds two lines to a Webflow Embed element, and the videos appear as a row of cards styled to match the site. They don't need an iframe, and the API key never reaches the browser.
 
@@ -10,12 +10,28 @@ A site editor adds two lines to a Webflow Embed element, and the videos appear a
 - As a site editor, I paste a `<div>` and a `<script>` tag into Webflow and get the latest 3 videos, with no further setup.
 - As a visitor, I see each video's thumbnail and title, and a "Watch" button that opens the video on YouTube in a new tab.
 - As the site owner, I don't want the API key exposed or quota used up, however much traffic the site gets.
+- As a site editor, I add a listings page with up to 30 videos by setting `data-yt-limit="30"`, and choose a grid or a list layout with attributes.
+- As a site editor, I add a separate row of the latest Shorts (4 across, 2x2 on mobile).
+- As a site editor, I can turn on a short description preview and an "Other ways to watch and listen" line of platform links per container.
 
 **Embed snippet (the whole integration)**
 ```html
 <div data-yt-listings></div>
 <script src="https://you-alright-mate-youtube-listings.george-49a.workers.dev/yt-listings.js" defer></script>
 ```
+
+**Container options (data attributes on the `[data-yt-listings]` div; Webflow custom attributes need a value, so any value except `false` turns a flag on)**
+
+| Attribute | Values | Default |
+|---|---|---|
+| `data-yt-source` | `videos`, `shorts` | `videos` |
+| `data-yt-limit` | 1-30 | 3 (videos), 4 (shorts) |
+| `data-yt-layout` | `grid`, `list` (videos only) | `grid` |
+| `data-yt-thumb` | `left`, `right`, `alternate` (list layout only) | `left` |
+| `data-yt-description` | flag: show the description preview | off |
+| `data-yt-links` | flag: show platform links, if the description has any | off |
+
+The existing homepage embed (`data-yt-listings` only) keeps rendering exactly 3 cards in a row.
 
 ## Architecture
 
@@ -27,16 +43,20 @@ One Cloudflare Worker with two jobs:
 | `GET /yt-listings.js` | Static client script (Workers static assets). Fetches `/videos` and renders the cards into `[data-yt-listings]`. |
 | Cron trigger (every 30 min) | Refreshes the cached video list from the YouTube Data API v3 and writes it to KV. |
 
-**Refresh flow (about 3 quota units per run, about 144 units/day of the 10,000 limit):**
+**Refresh flow (up to 5 quota units per run, about 240 units/day of the 10,000 limit):**
 1. `channels.list?part=contentDetails&id=<CHANNEL_ID>` returns the uploads playlist ID (1 unit).
-2. `playlistItems.list?part=contentDetails&playlistId=<uploads>&maxResults=15` returns the latest 15 video IDs (1 unit).
-3. `videos.list?part=snippet,contentDetails&id=<ids>` returns titles, thumbnails and durations (1 unit).
-4. Drop Shorts (see Shorts rule), keep the newest 3 and write them to KV under `videos:latest`.
+2. `playlistItems.list?part=contentDetails&playlistId=<uploads>&maxResults=50`, 2 pages, returns the latest 100 upload IDs (2 units). About half the channel's uploads are Shorts, so 100 candidates gives 30+ long-form videos.
+3. `videos.list?part=snippet,contentDetails&id=<ids>` in batches of 50 returns titles, descriptions, thumbnails and durations (2 units).
+4. Split into long-form videos (newest 30) and Shorts (newest 12), and write both to KV under `videos:latest`. If fewer exist, store what there is.
 5. **If any step fails, keep the existing KV value** (serve stale data rather than nothing) and log the error.
 
 `/videos` reads from KV. If KV is empty (first deploy), it runs the refresh once inline.
 
-**Shorts rule:** treat a video as a Short if its duration is **3 minutes (180s) or less**. YouTube doesn't expose an "is Short" flag in the API, so this is a heuristic (threshold agreed, see Decisions).
+**Shorts rule:** treat a video as a Short if its duration is **3 minutes (180s) or less**. YouTube doesn't expose an "is Short" flag in the API, so this is a heuristic (threshold agreed, see Decisions). Upcoming/live premieres (`P0D`) appear in neither list.
+
+**Description preview:** the description's opening paragraphs, up to the first paragraph containing a URL (sponsor and link blocks), joined into one line and cut at a word boundary to 280 characters with `…`. Empty if the first paragraph has a URL.
+
+**Platform links:** URLs in the description whose host matches a known platform (Apple Podcasts, Spotify, Acast, Amazon Music, YouTube Music, Pocket Casts, Overcast), first link per platform, in description order. Empty if there are none, and the client then shows nothing.
 
 **`/videos` response shape**
 ```json
@@ -48,8 +68,13 @@ One Cloudflare Worker with two jobs:
       "title": "Episode title",
       "thumbnail": "https://i.ytimg.com/vi/abc123/maxresdefault.jpg",
       "url": "https://www.youtube.com/watch?v=abc123",
-      "publishedAt": "2026-10-01T09:00:00Z"
+      "publishedAt": "2026-10-01T09:00:00Z",
+      "description": "Opening paragraph of the description…",
+      "links": [{ "name": "Spotify", "url": "https://open.spotify.com/episode/..." }]
     }
+  ],
+  "shorts": [
+    { "id": "xyz789", "title": "Short title", "thumbnail": "...", "url": "https://www.youtube.com/shorts/xyz789", "publishedAt": "..." }
   ]
 }
 ```
@@ -60,14 +85,17 @@ Headers: `Cache-Control: public, max-age=300` and `Access-Control-Allow-Origin` 
 Matches the live site's CSS (`different-hats-staging.webflow.shared.*.css`):
 
 - **Font:** inherits Montserrat from the page (already loaded by Webflow). Don't load fonts separately.
-- **Container:** horizontal flex row with 3 equal cards and a gap. It stacks to 1 column at 767px and below (Webflow's mobile landscape breakpoint).
+- **Container:** CSS grid, 3 equal columns with a gap, so 30 videos make 10 rows. It stacks to 1 column at 767px and below (Webflow's mobile landscape breakpoint).
+- **Shorts:** 4 columns of 9:16 cards (thumbnail cropped from the centre), 2x2 at 767px and below, smaller 2-line title.
+- **List layout:** one card per row. The thumbnail takes 55% of the card at full height and fades into the black text side (title, description, links, Watch). `data-yt-thumb` puts it left, right or alternating. At 767px and below it stacks with the thumbnail on top fading downwards.
+- **Description:** 14px, clamped to 3 lines (4 in the list layout). **Links:** one 14px line, `Other ways to watch and listen: Apple Podcasts, Spotify`, underlined text links opening in a new tab; omitted when there are no links.
 - **Card:** `background: #000`, `border: 2px solid #fff`, white text.
   - Thumbnail at full card width, 16:9 (`aspect-ratio: 16/9; object-fit: cover`), `loading="lazy"`, `alt` = video title.
   - Title below the thumbnail, centred, uppercase like the site's `h3` but smaller (about 18px, weight 400), clamped to 3 lines.
   - "Watch" button (label: `Watch`) below the title.
 - **Button:** uses the site's own `outlined-button w-button` classes, so it stays in sync with any site restyle: 3px solid `#fcee21` (yellow) border, yellow uppercase text, weight 600, transparent background, `scale(1.2)` on hover. The script's CSS repeats these rules scoped under `.yt-listings` as a fallback, so the cards still look right on a page without the site stylesheet (the local test page).
 - **Link:** `href` = YouTube watch URL, `target="_blank" rel="noopener"`.
-- **States:** while loading, show 3 placeholder cards of the same size so the layout doesn't shift. On error or with no videos, the container stays empty (no broken UI) and the script logs `console.warn`.
+- **States:** while loading, show as many placeholder cards as the limit of the same size so the layout doesn't shift. On error or with no videos, the container stays empty (no broken UI) and the script logs `console.warn`.
 - All injected CSS is prefixed `.yt-listings` and doesn't change any other part of the page.
 
 ## Tech Stack
@@ -170,6 +198,10 @@ export function toListing(video) {
 7. A request to `/videos` from an origin not in `ALLOWED_ORIGINS` gets no `Access-Control-Allow-Origin` header.
 8. The script adds no visible layout shift and doesn't affect styling outside the container.
 9. `npx vitest run` passes.
+10. `data-yt-limit="30"` shows up to 30 videos, 3 per row; the homepage embed with no extra attributes still shows 3.
+11. `data-yt-source="shorts"` shows the latest 4 Shorts, 4 across, 2x2 at 375px, each linking to `youtube.com/shorts/<id>`.
+12. Description preview and platform links appear only when their attribute is set, and no empty "Other ways to watch" line appears for videos without platform links.
+13. `data-yt-layout="list"` shows full-height thumbnails fading into the text, on the side set by `data-yt-thumb`.
 
 ## Decisions
 
@@ -177,6 +209,8 @@ export function toListing(video) {
 - **Worker host:** `you-alright-mate-youtube-listings.george-49a.workers.dev`. The repo already deploys there on push.
 - **Shorts threshold:** 180s, fine for now.
 - **Button label:** `Watch`.
+- **Listings page (2026-10-09):** one cache entry and one `/videos` response for every container; the client slices per container. The response grows to about 20KB (about 6KB gzipped), which is fine for the homepage too.
+- **Tablet:** grid stays at 3 columns down to 768px for now; 2 columns between 768px and 991px is a possible follow-up.
 
 ## Open Questions
 
