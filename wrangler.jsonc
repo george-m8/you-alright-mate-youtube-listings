@@ -23,5 +23,19 @@
     "PLAYLIST_ID": "PLV1mW11ZuqTKKQCzKVExS6tCWbeU3k9J_",
     // Comma-separated. Add new site domains here.
     "ALLOWED_ORIGINS": "https://different-hats-staging.webflow.io,https://www.different-hats.co.uk,http://localhost:8787,https://youalrightmate.co.uk,https://www.youalrightmate.com,https://youalrightmate.org.uk, https://www.youalrightmate.org.uk"
+  },
+
+  // Preview deployments (Workers Builds on non-main branches). Vars and KV are not
+  // inherited, so they are repeated here.
+  "previews": {
+    "vars": {
+      "CHANNEL_ID": "UCtifmqPSWYmwn9J53Bdh-Gg",
+      "PLAYLIST_ID": "PLV1mW11ZuqTKKQCzKVExS6tCWbeU3k9J_",
+      "ALLOWED_ORIGINS": "https://different-hats-staging.webflow.io,http://localhost:8787"
+    },
+    "kv_namespaces": [
+      // Shares the production cache (YOUTUBE_LISTINGS_VIDEOS). Swap for a separate namespace if previews cause issues.
+      { "binding": "VIDEOS", "id": "72bea2d74fca4cd69fb005e9e75ac16f" }
+    ]
   }
 }
