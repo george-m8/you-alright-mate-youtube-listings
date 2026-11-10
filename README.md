@@ -32,6 +32,7 @@ Add these as extra custom attributes on the same div (Webflow attributes always 
 | `data-yt-thumb` | `left`, `right`, `alternate` | `left` | Thumbnail side in the `list` layout |
 | `data-yt-description` | `true`/`false` | off | Preview of the description's opening paragraphs (about 280 characters, clamped to 3-4 lines) |
 | `data-yt-links` | `true`/`false` | off | `Other ways to watch and listen: Apple Podcasts, Spotify` from links in the description; hidden when there are none |
+| `data-yt-border` | `true`/`false` | on | `false` removes the white card border (looks cleaner in the `list` layout) |
 
 Examples:
 
@@ -43,8 +44,8 @@ Examples:
 <div data-yt-listings data-yt-source="shorts"></div>
 <div data-yt-listings data-yt-limit="30" data-yt-description="true" data-yt-links="true"></div>
 
-<!-- List layout, alternating sides -->
-<div data-yt-listings data-yt-limit="30" data-yt-layout="list" data-yt-thumb="alternate" data-yt-description="true" data-yt-links="true"></div>
+<!-- List layout, alternating sides, no borders -->
+<div data-yt-listings data-yt-limit="30" data-yt-layout="list" data-yt-thumb="alternate" data-yt-border="false" data-yt-description="true" data-yt-links="true"></div>
 ```
 
 **Platform links** come from the video's YouTube description: paste the full episode URL (for example `https://open.spotify.com/episode/...` or `https://podcasts.apple.com/...`) anywhere in it. Recognised: Apple Podcasts, Spotify, Acast, Amazon Music, YouTube Music, Pocket Casts, Overcast. They show up on the site after the next refresh (within 30 minutes).

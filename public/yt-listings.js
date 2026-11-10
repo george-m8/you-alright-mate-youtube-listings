@@ -2,7 +2,7 @@
  *
  * Options (data attributes on the container, see README):
  *   data-yt-source="videos|shorts|playlist"   data-yt-limit="1-30"   data-yt-layout="grid|list"
- *   data-yt-thumb="left|right|alternate"   data-yt-description   data-yt-links
+ *   data-yt-thumb="left|right|alternate"   data-yt-description   data-yt-links   data-yt-border="false"
  */
 (function () {
   var script = document.currentScript;
@@ -16,6 +16,7 @@
     '.yt-listings--shorts{grid-template-columns:repeat(4,minmax(0,1fr))}',
     '.yt-listings--list{grid-template-columns:minmax(0,1fr)}',
     '.yt-listings__card{min-width:0;display:flex;flex-direction:column;box-sizing:border-box;background:#000;border:2px solid #fff;color:#fff}',
+    '.yt-listings--borderless .yt-listings__card{border:none}',
     '.yt-listings__media{position:relative}',
     '.yt-listings__thumb{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#1a1a1a}',
     '.yt-listings--shorts .yt-listings__thumb{aspect-ratio:9/16}',
@@ -84,6 +85,7 @@
       thumb: data.ytThumb === 'right' || data.ytThumb === 'alternate' ? data.ytThumb : 'left',
       description: !shorts && flag(data.ytDescription),
       links: !shorts && flag(data.ytLinks),
+      border: data.ytBorder !== 'false', // On unless explicitly turned off.
     };
   }
 
@@ -163,6 +165,7 @@
     injectStyles();
     targets.forEach(function (target) {
       target.container.classList.add('yt-listings', 'yt-listings--' + target.options.layout);
+      if (!target.options.border) target.container.classList.add('yt-listings--borderless');
       fill(target.container, target.options.limit, function (i) {
         return placeholderCard(i, target.options);
       });
