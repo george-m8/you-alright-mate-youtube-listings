@@ -33,6 +33,8 @@ Add these as extra custom attributes on the same div (Webflow attributes always 
 | `data-yt-description` | `true`/`false` | off | Preview of the description's opening paragraphs (about 280 characters, clamped to 3-4 lines) |
 | `data-yt-links` | `true`/`false` | off | `Other ways to watch and listen: Apple Podcasts, Spotify` from links in the description; hidden when there are none |
 | `data-yt-border` | `true`/`false` | on | `false` removes the white card border (looks cleaner in the `list` layout) |
+| `data-yt-embed` | `true`/`false` | off | Thumbnails become play buttons that play the video on the page (privacy-enhanced `youtube-nocookie.com` player, loaded only on click). Starting one stops any other on the page. The button still links to YouTube |
+| `data-yt-button` | any text | `Watch` | Button text, e.g. `Watch on YouTube` |
 
 Examples:
 
@@ -41,7 +43,7 @@ Examples:
 <div data-yt-listings data-yt-source="playlist"></div>
 
 <!-- Listings page -->
-<div data-yt-listings data-yt-source="shorts"></div>
+<div data-yt-listings data-yt-source="shorts" data-yt-embed="true" data-yt-button="Watch on YouTube"></div>
 <div data-yt-listings data-yt-limit="30" data-yt-description="true" data-yt-links="true"></div>
 
 <!-- List layout, alternating sides, no borders -->

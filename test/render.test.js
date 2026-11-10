@@ -172,6 +172,73 @@ describe('container options', () => {
   });
 });
 
+describe('inline player (data-yt-embed)', () => {
+  const embed = '<div data-yt-listings data-yt-source="shorts" data-yt-embed="true"></div>';
+  const players = (container) => [...container.querySelectorAll('iframe')];
+
+  it('shows play buttons and loads nothing from YouTube until a click', async () => {
+    const { container } = await render(ok({ shorts: SHORTS }), embed);
+
+    const buttons = container.querySelectorAll('button.yt-listings__play');
+    expect(buttons).toHaveLength(4);
+    expect(buttons[0].getAttribute('aria-label')).toBe('Play Short 0');
+    expect(buttons[0].querySelector('img').src).toBe(SHORTS[0].thumbnail);
+    expect(players(container)).toHaveLength(0);
+  });
+
+  it('swaps the thumbnail for a privacy-enhanced autoplaying player on click', async () => {
+    const { container } = await render(ok({ shorts: SHORTS }), embed);
+
+    container.querySelector('button.yt-listings__play').click();
+
+    const [player] = players(container);
+    expect(player.src).toBe('https://www.youtube-nocookie.com/embed/s0?autoplay=1&playsinline=1&rel=0');
+    expect(player.title).toBe('Short 0');
+    expect(player.hasAttribute('allowfullscreen')).toBe(true);
+    expect(container.querySelectorAll('button.yt-listings__play')).toHaveLength(3);
+  });
+
+  it('stops the playing video when another one starts, across containers', async () => {
+    const { window, container } = await render(
+      ok({ videos: VIDEOS, shorts: SHORTS }),
+      embed + '<div data-yt-listings data-yt-embed="true"></div>',
+    );
+    const other = window.document.querySelectorAll('[data-yt-listings]')[1];
+
+    container.querySelectorAll('button.yt-listings__play')[0].click();
+    container.querySelectorAll('button.yt-listings__play')[0].click(); // Now the second Short.
+    other.querySelector('button.yt-listings__play').click();
+
+    expect(window.document.querySelectorAll('iframe')).toHaveLength(1);
+    expect(players(other)[0].src).toContain('/embed/v1?');
+    expect(container.querySelectorAll('button.yt-listings__play')).toHaveLength(4);
+  });
+
+  it('keeps the button linking to YouTube as a fallback', async () => {
+    const { container } = await render(ok({ shorts: SHORTS }), embed);
+    expect(container.querySelector('a.yt-listings__watch').href).toBe(SHORTS[0].url);
+  });
+
+  it('is off by default', async () => {
+    const { container } = await render(ok({ videos: VIDEOS }));
+    expect(container.querySelector('button.yt-listings__play')).toBeNull();
+  });
+});
+
+describe('button text (data-yt-button)', () => {
+  it('uses the given text on placeholders and cards, keeping the title in the accessible name', async () => {
+    const { container } = await render(ok({ videos: VIDEOS }), '<div data-yt-listings data-yt-button="Watch on YouTube"></div>');
+    const link = container.querySelector('a.yt-listings__watch');
+    expect(link.textContent).toBe('Watch on YouTube');
+    expect(link.getAttribute('aria-label')).toBe('Watch on YouTube: Episode 1 (opens YouTube in a new tab)');
+  });
+
+  it('falls back to Watch when empty', async () => {
+    const { container } = await render(ok({ videos: VIDEOS }), '<div data-yt-listings data-yt-button=" "></div>');
+    expect(container.querySelector('a.yt-listings__watch').textContent).toBe('Watch');
+  });
+});
+
 describe('yt-listings client', () => {
   it('shows 3 placeholders, then 3 video cards', async () => {
     const { container, placeholdersShown } = await render(ok({ videos: VIDEOS }));
