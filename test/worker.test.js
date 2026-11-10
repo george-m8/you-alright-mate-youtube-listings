@@ -17,7 +17,7 @@ const SHORT = {
   url: 'https://www.youtube.com/shorts/s1',
   publishedAt: '2026-10-05T00:00:00Z',
 };
-const CACHED = { updatedAt: '2026-10-08T12:00:00.000Z', videos: [LISTING], shorts: [SHORT] };
+const CACHED = { updatedAt: '2026-10-08T12:00:00.000Z', videos: [LISTING], shorts: [SHORT], playlist: [LISTING] };
 
 function fakeKv(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -35,6 +35,7 @@ function makeEnv(kvContents) {
   return {
     GOOGLE_CLOUD_API_KEY: 'test-key',
     CHANNEL_ID: 'UCchannel',
+    PLAYLIST_ID: 'PLlist',
     ALLOWED_ORIGINS: 'https://different-hats-staging.webflow.io, https://www.different-hats.co.uk',
     VIDEOS: fakeKv(kvContents),
   };
@@ -44,7 +45,7 @@ function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-// Stubs the three YouTube calls with one long-form video and one Short.
+// Stubs the YouTube calls (the uploads and the curated playlist both return these) with one long-form video and one Short.
 function youTubeOk() {
   const item = (listing, duration, description) => ({
     id: listing.id,
@@ -105,13 +106,23 @@ describe('GET /videos', () => {
     expect(JSON.parse(env.VIDEOS.store.get('videos:latest')).videos).toEqual([LISTING]);
   });
 
+  it('refreshes inline when the cached data predates the playlist', async () => {
+    vi.stubGlobal('fetch', youTubeOk());
+    const { playlist, ...old } = CACHED;
+    const env = makeEnv({ 'videos:latest': JSON.stringify(old) });
+
+    const res = await worker.fetch(request('/videos'), env);
+
+    expect((await res.json()).playlist).toHaveLength(2);
+  });
+
   it('returns 502 with an empty list when KV is empty and the refresh fails', async () => {
     vi.stubGlobal('fetch', youTubeDown());
 
     const res = await worker.fetch(request('/videos'), makeEnv());
 
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ videos: [], shorts: [] });
+    expect(await res.json()).toEqual({ videos: [], shorts: [], playlist: [] });
     expect(console.error).toHaveBeenCalled();
   });
 
@@ -166,7 +177,18 @@ describe('scheduled refresh', () => {
     const stored = JSON.parse(env.VIDEOS.store.get('videos:latest'));
     expect(stored.videos).toEqual([LISTING]);
     expect(stored.shorts).toEqual([SHORT]);
+    // The playlist is curated, so it keeps everything in it, Shorts included.
+    expect(stored.playlist.map((v) => v.id)).toEqual(['v1', 's1']);
     expect(Date.parse(stored.updatedAt)).not.toBeNaN();
+  });
+
+  it('stores an empty playlist when PLAYLIST_ID is not set', async () => {
+    vi.stubGlobal('fetch', youTubeOk());
+    const env = { ...makeEnv(), PLAYLIST_ID: undefined };
+
+    await runScheduled(env);
+
+    expect(JSON.parse(env.VIDEOS.store.get('videos:latest')).playlist).toEqual([]);
   });
 
   it('keeps the last good value and logs when YouTube fails', async () => {

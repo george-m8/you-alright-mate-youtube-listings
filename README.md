@@ -1,6 +1,6 @@
 # YouTube Listings for Webflow
 
-Shows the latest long-form videos (3 on the homepage, up to 30 on a listings page) and the latest Shorts from the [Different Hats Podcast](https://www.youtube.com/@different-hats) YouTube channel as styled cards on the Webflow site. You add it with a script tag, not an iframe.
+Shows the latest 3 videos from a [curated playlist](https://www.youtube.com/playlist?list=PLV1mW11ZuqTKKQCzKVExS6tCWbeU3k9J_) on the homepage, plus the latest long-form videos (up to 30) and Shorts for a listings page, from the [Different Hats Podcast](https://www.youtube.com/@different-hats) YouTube channel as styled cards on the Webflow site. You add it with a script tag, not an iframe.
 
 A Cloudflare Worker keeps the YouTube API key secret, refreshes the video list every 30 minutes and serves the embed script. See [SPEC.md](SPEC.md) for the full requirements.
 
@@ -9,7 +9,7 @@ A Cloudflare Worker keeps the YouTube API key secret, refreshes the video list e
 Paste this into an **Embed** element wherever the cards should appear:
 
 ```html
-<div data-yt-listings></div>
+<div data-yt-listings data-yt-source="playlist"></div>
 <script src="https://you-alright-mate-youtube-listings.george-49a.workers.dev/yt-listings.js" defer></script>
 ```
 
@@ -26,7 +26,7 @@ Add these as extra custom attributes on the same div (Webflow attributes always 
 
 | Attribute | Values | Default | What it does |
 |---|---|---|---|
-| `data-yt-source` | `videos`, `shorts` | `videos` | `shorts`: Shorts in a row of 4 (2x2 on mobile), linking to the Shorts player |
+| `data-yt-source` | `videos`, `shorts`, `playlist` | `videos` | `videos`: latest uploads. `playlist`: latest from the playlist in `PLAYLIST_ID` (the homepage), same cards and options as `videos`. `shorts`: Shorts in a row of 4 (2x2 on mobile), linking to the Shorts player |
 | `data-yt-limit` | 1-30 (12 for Shorts) | 3 (4 for Shorts) | How many to show; grids wrap 3 per row, so 30 makes 10 rows |
 | `data-yt-layout` | `grid`, `list` | `grid` | `list`: one wide card per row, thumbnail at full height fading into the text |
 | `data-yt-thumb` | `left`, `right`, `alternate` | `left` | Thumbnail side in the `list` layout |
@@ -36,8 +36,8 @@ Add these as extra custom attributes on the same div (Webflow attributes always 
 Examples:
 
 ```html
-<!-- Homepage: unchanged -->
-<div data-yt-listings></div>
+<!-- Homepage: latest 3 from the playlist -->
+<div data-yt-listings data-yt-source="playlist"></div>
 
 <!-- Listings page -->
 <div data-yt-listings data-yt-source="shorts"></div>
@@ -55,17 +55,17 @@ Examples:
 
 ```
 Cron (every 30 min) ──► YouTube Data API v3 ──► KV (videos:latest)
-                         (≤5 quota units/run)          │
+                         (~7 quota units/run)          │
 Webflow page ──► /yt-listings.js ──► GET /videos ◄────┘
 ```
 
 | Route | What it does |
 |---|---|
 | `GET /yt-listings.js` | The embed script (static asset from `public/`) |
-| `GET /videos` | Latest 30 videos (with description preview and platform links) and 12 Shorts as JSON, read from KV. CORS only for `ALLOWED_ORIGINS` |
+| `GET /videos` | `videos` (latest 30, with description preview and platform links), `shorts` (latest 12) and `playlist` (latest 30 from `PLAYLIST_ID`) as JSON, read from KV. CORS only for `ALLOWED_ORIGINS` |
 | Cron `*/30 * * * *` | Refreshes KV. If YouTube fails, the last good list is kept |
 
-Each refresh reads the newest 100 uploads. Videos of **3 minutes or less are treated as Shorts** (`SHORTS_MAX_SECONDS` in `src/youtube.js`); trailing hashtags are stripped from Shorts titles.
+Each refresh reads the newest 100 uploads and every item in the playlist. **The playlist is sorted by publish date**, not by its order in YouTube Studio, and keeps everything in it (Shorts included). Removing a video from the playlist drops it from the homepage on the next refresh. Videos of **3 minutes or less are treated as Shorts** (`SHORTS_MAX_SECONDS` in `src/youtube.js`); trailing hashtags are stripped from Shorts titles.
 
 ## Configuration
 
@@ -73,6 +73,7 @@ Each refresh reads the newest 100 uploads. Videos of **3 minutes or less are tre
 |---|---|---|
 | `GOOGLE_CLOUD_API_KEY` | Worker secret; `.env` for local dev | Google Cloud API key with YouTube Data API v3 enabled |
 | `CHANNEL_ID` | `wrangler.jsonc` `vars` | `UCtifmqPSWYmwn9J53Bdh-Gg` (@different-hats) |
+| `PLAYLIST_ID` | `wrangler.jsonc` `vars` | `PLV1mW11ZuqTKKQCzKVExS6tCWbeU3k9J_` (homepage playlist). Unset: `playlist` is empty |
 | `ALLOWED_ORIGINS` | `wrangler.jsonc` `vars` | Comma-separated site origins allowed to load the videos |
 | `VIDEOS` | `wrangler.jsonc` KV binding | KV namespace `YOUTUBE_LISTINGS_VIDEOS` |
 
