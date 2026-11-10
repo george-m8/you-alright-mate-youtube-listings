@@ -78,6 +78,24 @@ describe('container options', () => {
     expect(links).toEqual(SHORTS.slice(0, 4).map((s) => s.url));
   });
 
+  it('renders the first 3 playlist videos as regular cards with data-yt-source="playlist"', async () => {
+    const { container } = await render(
+      ok({ videos: MANY, shorts: SHORTS, playlist: [...VIDEOS].reverse() }),
+      '<div data-yt-listings data-yt-source="playlist" data-yt-description="true"></div>',
+    );
+
+    expect(container.className).toBe('yt-listings yt-listings--grid');
+    const titles = [...container.querySelectorAll('.yt-listings__title')].map((t) => t.textContent);
+    expect(titles).toEqual(['Episode 3', 'Episode 2', 'Episode 1']);
+    expect(container.querySelectorAll('.yt-listings__description')).toHaveLength(3);
+  });
+
+  it('leaves a playlist container empty when the cache predates the playlist', async () => {
+    const { window, container } = await render(ok({ videos: VIDEOS }), '<div data-yt-listings data-yt-source="playlist"></div>');
+    expect(container.children).toHaveLength(0);
+    expect(window.console.warn).toHaveBeenCalled();
+  });
+
   it('leaves a Shorts container empty and warns when the cache has no Shorts yet', async () => {
     const { window, container } = await render(ok({ videos: VIDEOS }), '<div data-yt-listings data-yt-source="shorts"></div>');
     expect(container.children).toHaveLength(0);

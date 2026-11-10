@@ -19,7 +19,9 @@
   // GOOGLE_CLOUD_API_KEY is a secret: `npx wrangler secret put GOOGLE_CLOUD_API_KEY` (locally: .dev.vars).
   "vars": {
     "CHANNEL_ID": "UCtifmqPSWYmwn9J53Bdh-Gg",
+    // Curated playlist for data-yt-source="playlist" (the homepage).
+    "PLAYLIST_ID": "PLV1mW11ZuqTKKQCzKVExS6tCWbeU3k9J_",
     // Comma-separated. Add new site domains here.
-    "ALLOWED_ORIGINS": "https://different-hats-staging.webflow.io,https://www.different-hats.co.uk,http://localhost:8787"
+    "ALLOWED_ORIGINS": "https://different-hats-staging.webflow.io,https://www.different-hats.co.uk,http://localhost:8787,https://youalrightmate.co.uk,https://www.youalrightmate.com,https://youalrightmate.org.uk, https://www.youalrightmate.org.uk"
   }
 }

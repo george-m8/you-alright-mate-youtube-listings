@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   descriptionPreview,
   fetchLatestVideos,
+  fetchPlaylist,
   isShort,
   parseDuration,
   platformLinks,
@@ -221,5 +222,47 @@ describe('fetchLatestVideos', () => {
   it('throws if the channel is not found', async () => {
     const fetchFn = vi.fn(async () => jsonResponse({ items: [] }));
     await expect(fetchLatestVideos('key', 'UCmissing', fetchFn)).rejects.toThrow('Channel not found');
+  });
+});
+
+describe('fetchPlaylist', () => {
+  const items = [
+    video('old', 'PT30M', '2026-08-01T00:00:00Z'),
+    video('new', 'PT25M', '2026-10-06T00:00:00Z'),
+    video('mid', 'PT2M', '2026-09-01T00:00:00Z'),
+  ];
+
+  it('returns playlist videos newest first by publish date, whatever the playlist order', async () => {
+    const playlist = await fetchPlaylist('key', 'PLlist', mockYouTube(items));
+    expect(playlist.map((v) => v.id)).toEqual(['new', 'mid', 'old']);
+    expect(playlist[0]).toHaveProperty('description');
+    expect(playlist[0].url).toBe('https://www.youtube.com/watch?v=new');
+  });
+
+  it('reads the given playlist without looking up the channel', async () => {
+    const fetchFn = mockYouTube(items);
+    await fetchPlaylist('key', 'PLlist', fetchFn);
+    const urls = fetchFn.mock.calls.map(([url]) => new URL(url));
+    expect(urls.map((u) => u.pathname.split('/').pop())).toEqual(['playlistItems', 'videos']);
+    expect(urls[0].searchParams.get('playlistId')).toBe('PLlist');
+  });
+
+  it('reads every page so a new video at the end of a long playlist is found', async () => {
+    const many = Array.from({ length: 120 }, (_, i) => video(`p${i}`, 'PT20M', `2026-01-01T00:00:${String(i % 60).padStart(2, '0')}Z`));
+    many.push(video('latest', 'PT20M', '2026-10-01T00:00:00Z'));
+    const fetchFn = mockYouTube(many);
+
+    const playlist = await fetchPlaylist('key', 'PLlist', fetchFn);
+
+    const paths = fetchFn.mock.calls.map(([url]) => new URL(url).pathname.split('/').pop());
+    expect(paths.filter((p) => p === 'playlistItems')).toHaveLength(3);
+    expect(playlist[0].id).toBe('latest');
+    expect(playlist).toHaveLength(30);
+  });
+
+  it('leaves out upcoming/live premieres (P0D)', async () => {
+    const premiere = video('live', 'P0D', '2026-10-08T00:00:00Z');
+    const playlist = await fetchPlaylist('key', 'PLlist', mockYouTube([premiere, ...items]));
+    expect(playlist.map((v) => v.id)).not.toContain('live');
   });
 });

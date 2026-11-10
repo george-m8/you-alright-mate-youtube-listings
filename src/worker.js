@@ -1,10 +1,13 @@
-import { fetchLatestVideos } from './youtube.js';
+import { fetchLatestVideos, fetchPlaylist } from './youtube.js';
 
 const KV_KEY = 'videos:latest';
 
 async function refresh(env) {
-  const { videos, shorts } = await fetchLatestVideos(env.GOOGLE_CLOUD_API_KEY, env.CHANNEL_ID);
-  const data = { updatedAt: new Date().toISOString(), videos, shorts };
+  const [{ videos, shorts }, playlist] = await Promise.all([
+    fetchLatestVideos(env.GOOGLE_CLOUD_API_KEY, env.CHANNEL_ID),
+    env.PLAYLIST_ID ? fetchPlaylist(env.GOOGLE_CLOUD_API_KEY, env.PLAYLIST_ID) : [],
+  ]);
+  const data = { updatedAt: new Date().toISOString(), videos, shorts, playlist };
   await env.VIDEOS.put(KV_KEY, JSON.stringify(data));
   return data;
 }
@@ -39,13 +42,13 @@ export default {
     }
 
     let data = await env.VIDEOS.get(KV_KEY, 'json');
-    if (!data) {
-      // First request after deploy, before the cron has run.
+    if (!data || (env.PLAYLIST_ID && !data.playlist)) {
+      // First request after deploy, before the cron has run (or the cache predates the playlist).
       try {
         data = await refresh(env);
       } catch (err) {
         console.error('Inline refresh failed:', err.message);
-        return json({ videos: [], shorts: [] }, 502, cors);
+        return json({ videos: [], shorts: [], playlist: [] }, 502, cors);
       }
     }
     return json(data, 200, cors);

@@ -210,6 +210,7 @@ export function toListing(video) {
 - **Shorts threshold:** 180s, fine for now.
 - **Button label:** `Watch`.
 - **Listings page (2026-10-09):** one cache entry and one `/videos` response for every container; the client slices per container. The response grows to about 20KB (about 6KB gzipped), which is fine for the homepage too.
+- **Homepage playlist (2026-11-10):** the homepage shows the latest 3 from playlist `PLV1mW11ZuqTKKQCzKVExS6tCWbeU3k9J_` via `data-yt-source="playlist"`; the listings page keeps using all uploads. The playlist is a third array in the same cache entry, sorted by publish date (every page read, about 2 extra quota units per refresh).
 - **Tablet:** grid stays at 3 columns down to 768px for now; 2 columns between 768px and 991px is a possible follow-up.
 
 ## Open Questions

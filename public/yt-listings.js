@@ -1,7 +1,7 @@
-/* YouTube listings for Webflow: renders the latest videos or Shorts into every [data-yt-listings] element.
+/* YouTube listings for Webflow: renders the latest videos, Shorts or playlist videos into every [data-yt-listings] element.
  *
  * Options (data attributes on the container, see README):
- *   data-yt-source="videos|shorts"   data-yt-limit="1-30"   data-yt-layout="grid|list"
+ *   data-yt-source="videos|shorts|playlist"   data-yt-limit="1-30"   data-yt-layout="grid|list"
  *   data-yt-thumb="left|right|alternate"   data-yt-description   data-yt-links
  */
 (function () {
@@ -78,7 +78,7 @@
     var shorts = data.ytSource === 'shorts';
     var limit = parseInt(data.ytLimit, 10) || (shorts ? 4 : 3);
     return {
-      source: shorts ? 'shorts' : 'videos',
+      source: shorts ? 'shorts' : data.ytSource === 'playlist' ? 'playlist' : 'videos',
       layout: shorts ? 'shorts' : data.ytLayout === 'list' ? 'list' : 'grid',
       limit: Math.min(Math.max(limit, 1), MAX_ITEMS),
       thumb: data.ytThumb === 'right' || data.ytThumb === 'alternate' ? data.ytThumb : 'left',

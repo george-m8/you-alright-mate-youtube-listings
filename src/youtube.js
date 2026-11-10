@@ -3,6 +3,7 @@ const SHORTS_MAX_SECONDS = 180;
 const PAGE_SIZE = 50; // The most playlistItems.list and videos.list accept per call.
 const CANDIDATE_PAGES = 2; // About half the channel's uploads are Shorts, so 100 candidates covers 30 videos.
 const VIDEO_COUNT = 30;
+const PLAYLIST_MAX_PAGES = 10; // Up to 500 items; a safety cap on quota, not an expected size.
 const SHORTS_COUNT = 12;
 const PREVIEW_MAX_CHARS = 280;
 
@@ -95,18 +96,14 @@ async function callApi(fetchFn, endpoint, params) {
   return body;
 }
 
-// Costs up to 5 quota units: channels.list, 2x playlistItems.list, 2x videos.list (never search.list).
-export async function fetchLatestVideos(apiKey, channelId, fetchFn = fetch) {
-  const channels = await callApi(fetchFn, 'channels', { part: 'contentDetails', id: channelId, key: apiKey });
-  const uploads = channels.items?.[0]?.contentDetails.relatedPlaylists.uploads;
-  if (!uploads) throw new Error(`Channel not found: ${channelId}`);
-
+// Video details for a playlist's first maxPages pages, newest first. One playlistItems.list and one videos.list per page.
+async function fetchPlaylistItems(fetchFn, apiKey, playlistId, maxPages) {
   const ids = [];
   let pageToken;
-  for (let page = 0; page < CANDIDATE_PAGES; page++) {
+  for (let page = 0; page < maxPages; page++) {
     const playlist = await callApi(fetchFn, 'playlistItems', {
       part: 'contentDetails',
-      playlistId: uploads,
+      playlistId,
       maxResults: PAGE_SIZE,
       key: apiKey,
       ...(pageToken && { pageToken }),
@@ -116,20 +113,40 @@ export async function fetchLatestVideos(apiKey, channelId, fetchFn = fetch) {
     if (!pageToken) break;
   }
 
+  // Deleted and private videos are missing from videos.list, so they drop out here.
   const items = [];
   for (let i = 0; i < ids.length; i += PAGE_SIZE) {
     const batch = ids.slice(i, i + PAGE_SIZE).join(',');
     const videos = await callApi(fetchFn, 'videos', { part: 'snippet,contentDetails', id: batch, key: apiKey });
     items.push(...videos.items);
   }
-  items.sort((a, b) => b.snippet.publishedAt.localeCompare(a.snippet.publishedAt));
+  return items.sort((a, b) => b.snippet.publishedAt.localeCompare(a.snippet.publishedAt));
+}
 
+// Upcoming/live premieres have a zero duration and belong in no list.
+function isPremiere(video) {
+  return parseDuration(video.contentDetails.duration) === 0;
+}
+
+// Costs up to 5 quota units: channels.list, 2x playlistItems.list, 2x videos.list (never search.list).
+export async function fetchLatestVideos(apiKey, channelId, fetchFn = fetch) {
+  const channels = await callApi(fetchFn, 'channels', { part: 'contentDetails', id: channelId, key: apiKey });
+  const uploads = channels.items?.[0]?.contentDetails.relatedPlaylists.uploads;
+  if (!uploads) throw new Error(`Channel not found: ${channelId}`);
+
+  const items = await fetchPlaylistItems(fetchFn, apiKey, uploads, CANDIDATE_PAGES);
   return {
     videos: items.filter((video) => !isShort(video)).slice(0, VIDEO_COUNT).map(toListing),
-    // Upcoming/live premieres have a zero duration and belong in neither list.
     shorts: items
-      .filter((video) => isShort(video) && parseDuration(video.contentDetails.duration) > 0)
+      .filter((video) => isShort(video) && !isPremiere(video))
       .slice(0, SHORTS_COUNT)
       .map(toShort),
   };
+}
+
+// A curated playlist, newest first by publish date (a playlist's own order is set by hand in YouTube Studio).
+// Reads every page so a new video added at the end is still found: 2 quota units per 50 items.
+export async function fetchPlaylist(apiKey, playlistId, fetchFn = fetch) {
+  const items = await fetchPlaylistItems(fetchFn, apiKey, playlistId, PLAYLIST_MAX_PAGES);
+  return items.filter((video) => !isPremiere(video)).slice(0, VIDEO_COUNT).map(toListing);
 }
