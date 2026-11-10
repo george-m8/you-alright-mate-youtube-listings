@@ -3,11 +3,14 @@
  * Options (data attributes on the container, see README):
  *   data-yt-source="videos|shorts|playlist"   data-yt-limit="1-30"   data-yt-layout="grid|list"
  *   data-yt-thumb="left|right|alternate"   data-yt-description   data-yt-links   data-yt-border="false"
+ *   data-yt-embed (play on the page)   data-yt-button="Button text"
  */
 (function () {
   var script = document.currentScript;
   var endpoint = new URL('/videos', (script && script.src) || location.href).href;
   var MAX_ITEMS = 30;
+  var EMBED_BASE = 'https://www.youtube-nocookie.com/embed/';
+  var playing = null; // The one inline player on the page, so starting another stops it.
 
   // :where() keeps the button fallback at zero specificity so the site's own
   // .outlined-button styles win on Webflow; the fallback only shows elsewhere.
@@ -20,6 +23,14 @@
     '.yt-listings__media{position:relative}',
     '.yt-listings__thumb{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#1a1a1a}',
     '.yt-listings--shorts .yt-listings__thumb{aspect-ratio:9/16}',
+    // Inline player: a thumbnail button that swaps in the YouTube player on click.
+    '.yt-listings__play{display:block;position:relative;width:100%;padding:0;border:0;background:none;cursor:pointer}',
+    '.yt-listings__play-icon{position:absolute;top:50%;left:50%;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;background:rgba(0,0,0,.6);border:2px solid #fff;box-sizing:border-box;transition:transform .2s}',
+    '.yt-listings__play-icon::before{content:"";position:absolute;top:50%;left:50%;margin:-12px 0 0 -7px;border-style:solid;border-width:12px 0 12px 20px;border-color:transparent transparent transparent #fff}',
+    '.yt-listings__play:hover .yt-listings__play-icon{transform:scale(1.1)}',
+    '.yt-listings__play:focus-visible{outline:2px solid #fff;outline-offset:-4px}',
+    '.yt-listings__player{display:block;width:100%;aspect-ratio:16/9;border:0}',
+    '.yt-listings--shorts .yt-listings__player{aspect-ratio:9/16}',
     '.yt-listings__body{display:flex;flex-direction:column;flex:1;gap:16px;padding:16px}',
     '.yt-listings__title{margin:0;min-height:78px;font:inherit;font-size:18px;line-height:26px;font-weight:400;text-align:center;text-transform:uppercase;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}',
     '.yt-listings--shorts .yt-listings__title{min-height:40px;font-size:14px;line-height:20px;-webkit-line-clamp:2}',
@@ -36,7 +47,9 @@
     '.yt-listings--list .yt-listings__card{flex-direction:row}',
     '.yt-listings--list .yt-listings__card--flip{flex-direction:row-reverse}',
     '.yt-listings--list .yt-listings__media{flex:0 0 55%;aspect-ratio:16/9}',
-    '.yt-listings--list .yt-listings__media::after{content:"";position:absolute;inset:0;background:linear-gradient(to right,transparent 45%,#000)}',
+    '.yt-listings--list .yt-listings__media::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(to right,transparent 45%,#000)}',
+    '.yt-listings--list .yt-listings__media--playing::after{display:none}',
+    '.yt-listings--list .yt-listings__play,.yt-listings--list .yt-listings__player{position:absolute;inset:0;height:100%}',
     '.yt-listings--list .yt-listings__card--flip .yt-listings__media::after{background:linear-gradient(to left,transparent 45%,#000)}',
     '.yt-listings--list .yt-listings__thumb{position:absolute;inset:0;height:100%;aspect-ratio:auto}',
     '.yt-listings--list .yt-listings__body{justify-content:center;padding:24px 32px}',
@@ -86,6 +99,8 @@
       description: !shorts && flag(data.ytDescription),
       links: !shorts && flag(data.ytLinks),
       border: data.ytBorder !== 'false', // On unless explicitly turned off.
+      embed: flag(data.ytEmbed),
+      button: (data.ytButton || '').trim() || 'Watch',
     };
   }
 
@@ -107,7 +122,7 @@
     shell.media.append(el('div', 'yt-listings__thumb'));
     shell.body.append(el('p', 'yt-listings__title'));
     if (options.description) shell.body.append(el('p', 'yt-listings__description'));
-    shell.body.append(el('span', 'yt-listings__watch', 'Watch'));
+    shell.body.append(el('span', 'yt-listings__watch', options.button));
     return shell.card;
   }
 
@@ -128,13 +143,47 @@
     return line;
   }
 
+  // Nothing loads from YouTube until a click; the thumbnail is just a button until then.
+  function playButton(media, thumb, video) {
+    var button = el('button', 'yt-listings__play');
+    button.type = 'button';
+    button.setAttribute('aria-label', 'Play ' + video.title);
+    thumb.alt = '';
+    button.append(thumb, el('span', 'yt-listings__play-icon'));
+    button.addEventListener('click', function () {
+      play(media, button, video);
+    });
+    return button;
+  }
+
+  function play(media, button, video) {
+    stopPlaying();
+    var player = el('iframe', 'yt-listings__player');
+    player.src = EMBED_BASE + encodeURIComponent(video.id) + '?autoplay=1&playsinline=1&rel=0';
+    player.title = video.title;
+    player.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    player.setAttribute('allowfullscreen', '');
+    media.replaceChildren(player);
+    media.classList.add('yt-listings__media--playing');
+    player.focus();
+    playing = { media: media, button: button };
+  }
+
+  // Removing the iframe is what stops the video; the card goes back to its thumbnail.
+  function stopPlaying() {
+    if (!playing) return;
+    playing.media.replaceChildren(playing.button);
+    playing.media.classList.remove('yt-listings__media--playing');
+    playing = null;
+  }
+
   function videoCard(video, index, options) {
     var shell = cardShell('article', index, options);
     var thumb = el('img', 'yt-listings__thumb');
     thumb.src = video.thumbnail;
     thumb.alt = video.title;
     thumb.setAttribute('loading', 'lazy');
-    shell.media.append(thumb);
+    shell.media.append(options.embed ? playButton(shell.media, thumb, video) : thumb);
 
     shell.body.append(el('h3', 'yt-listings__title', video.title));
     if (options.description && video.description) {
@@ -144,8 +193,8 @@
       shell.body.append(platformLinks(video.links));
     }
 
-    var watch = externalLink('yt-listings__watch outlined-button w-button', 'Watch', video.url);
-    watch.setAttribute('aria-label', 'Watch ' + video.title + ' on YouTube (opens in a new tab)');
+    var watch = externalLink('yt-listings__watch outlined-button w-button', options.button, video.url);
+    watch.setAttribute('aria-label', options.button + ': ' + video.title + ' (opens YouTube in a new tab)');
     shell.body.append(watch);
     return shell.card;
   }
