@@ -140,6 +140,16 @@ describe('container options', () => {
     expect(anchors[1].rel).toBe('noopener');
   });
 
+  it('keeps card borders by default and drops them with data-yt-border="false"', async () => {
+    const withBorder = await render(ok({ videos: VIDEOS }), '<div data-yt-listings data-yt-layout="list"></div>');
+    expect(withBorder.container.classList.contains('yt-listings--borderless')).toBe(false);
+
+    const without = await render(ok({ videos: VIDEOS }), '<div data-yt-listings data-yt-layout="list" data-yt-border="false"></div>');
+    expect(without.container.className).toBe('yt-listings yt-listings--list yt-listings--borderless');
+    const css = without.window.document.getElementById('yt-listings-style').textContent;
+    expect(css).toContain('.yt-listings--borderless .yt-listings__card{border:none}');
+  });
+
   it('alternates the thumbnail side in the list layout', async () => {
     const { container } = await render(
       ok({ videos: VIDEOS }),
